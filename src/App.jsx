@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, configured } from './supabase.js';
+import { supabase, configured, configError } from './supabase.js';
 import { useHouseholdData } from './lib/useData.js';
 import { monthOf } from './lib/format.js';
 import { Icon } from './components/Icons.jsx';
@@ -25,7 +25,8 @@ export default function App() {
     return (
       <div className="center"><div className="sheet card">
         <h1>Falta configurar</h1>
-        <p>Añade <b>VITE_SUPABASE_URL</b> y <b>VITE_SUPABASE_ANON_KEY</b> en las variables de entorno de Vercel y vuelve a desplegar.</p>
+        <div className="note err">{configError}</div>
+        <p>Revisa <b>VITE_SUPABASE_URL</b> y <b>VITE_SUPABASE_ANON_KEY</b> en Vercel → Settings → Environment Variables y vuelve a desplegar (Deployments → ⋯ → Redeploy).</p>
       </div></div>
     );
   }
