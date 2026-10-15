@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Limpia espacios o comillas que se cuelan al copiar y pegar.
 const clean = (v) => (v || '').trim().replace(/^["']|["']$/g, '').trim();
-const url = clean(import.meta.env.VITE_SUPABASE_URL).replace(/\/+$/, '');
+const url = clean(import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
 const key = clean(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 let client = null;
