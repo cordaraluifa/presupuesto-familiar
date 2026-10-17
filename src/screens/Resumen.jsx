@@ -5,7 +5,7 @@ import { Icon } from '../components/Icons.jsx';
 import { monthStats } from '../lib/useData.js';
 import { GROUPS, GROUP, OUTFLOW, money, money2, monthOf, daysInMonth, dateLabel, initial, personColor, addMonths } from '../lib/format.js';
 
-export default function Resumen({ data, user, month, setMonth, go, notify }) {
+export default function Resumen({ data, user, month, setMonth, go, notify, edit }) {
   const [showAll, setShowAll] = useState(false);
   const st = monthStats(data, month);
   const g = (k) => st.groups[k] || { budget: 0, real: 0, cats: [] };
@@ -123,11 +123,13 @@ export default function Resumen({ data, user, month, setMonth, go, notify }) {
           return (
             <div key={t.id} className="item">
               <span className="avatar" style={{ background: who ? personColor(idx) : '#5B6660' }} title={who ? who.display_name : 'Compartido'}>{who ? initial(who.display_name) : '='}</span>
-              <div className="grow">
+              <button className="grow" style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                aria-label={`Editar ${t.note || c?.name}, ${money2(t.amount)}`} onClick={() => edit(t)}>
                 <span className="title">{t.note || c?.name}</span>
                 <span className="small">{c?.name} · {GROUP[c?.grp]?.label.toLowerCase()} · {dateLabel(t.date)}</span>
-              </div>
+              </button>
               <span className="num" style={{ fontSize: 14, fontWeight: 700, color: isIncome ? 'var(--accent)' : 'var(--ink)' }}>{isIncome ? '+' : '−'}{money2(t.amount)}</span>
+              <button className="iconbtn" aria-label="Editar movimiento" onClick={() => edit(t)}><Icon.edit /></button>
               <button className="iconbtn" aria-label="Borrar movimiento" onClick={() => remove(t)}><Icon.trash /></button>
             </div>
           );

@@ -11,18 +11,21 @@ const TYPES = [
   { key: 'ahorro', label: 'Ahorro', groups: ['ahorro'] },
 ];
 
-export default function NuevoMovimiento({ data, user, go, notify }) {
-  const [type, setType] = useState('gasto');
-  const [catId, setCatId] = useState(null);
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(today());
-  const [payer, setPayer] = useState(user.id);
-  const [note, setNote] = useState('');
+const typeOfGroup = (grp) => (TYPES.find((x) => x.groups.includes(grp)) || TYPES[0]).key;
+
+export default function NuevoMovimiento({ data, user, go, notify, editing }) {
+  const origCat = editing ? data.categories.find((c) => c.id === editing.category_id) : null;
+  const [type, setType] = useState(origCat ? typeOfGroup(origCat.grp) : 'gasto');
+  const [catId, setCatId] = useState(editing?.category_id ?? null);
+  const [amount, setAmount] = useState(editing ? String(Number(editing.amount)).replace('.', ',') : '');
+  const [date, setDate] = useState(editing?.date ?? today());
+  const [payer, setPayer] = useState(editing ? (editing.paid_by ?? 'shared') : user.id);
+  const [note, setNote] = useState(editing?.note ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const t = TYPES.find((x) => x.key === type);
-  const cats = data.categories.filter((c) => !c.archived && t.groups.includes(c.grp))
+  const cats = data.categories.filter((c) => (!c.archived || c.id === editing?.category_id) && t.groups.includes(c.grp))
     .sort((a, b) => t.groups.indexOf(a.grp) - t.groups.indexOf(b.grp) || a.sort - b.sort);
   const current = cats.find((c) => c.id === catId) || null;
 
@@ -33,7 +36,8 @@ export default function NuevoMovimiento({ data, user, go, notify }) {
 
   let impact = null;
   if (current) {
-    const before = st.realByCat[current.id] || 0;
+    const sameAsOriginal = editing && editing.category_id === current.id && editing.date.slice(0, 7) === month.slice(0, 7);
+    const before = (st.realByCat[current.id] || 0) - (sameAsOriginal ? Number(editing.amount) : 0);
     const budget = st.budgetByCat[current.id] || 0;
     const after = before + add;
     impact = {
@@ -50,13 +54,24 @@ export default function NuevoMovimiento({ data, user, go, notify }) {
     if (!current) { setErr('Elige una categoría.'); return; }
     if (!add) { setErr('Escribe un importe mayor que 0.'); return; }
     setBusy(true);
-    const { error } = await supabase.from('transactions').insert({
-      household_id: data.household.id, category_id: current.id, amount: add, date, note: note.trim() || null,
-      paid_by: payer === 'shared' ? null : payer,
-    });
+    const row = { category_id: current.id, amount: add, date, note: note.trim() || null, paid_by: payer === 'shared' ? null : payer };
+    const { error } = editing
+      ? await supabase.from('transactions').update(row).eq('id', editing.id)
+      : await supabase.from('transactions').insert({ ...row, household_id: data.household.id });
     setBusy(false);
     if (error) { setErr(error.message); return; }
-    notify(`Guardado: ${money(add)} en ${current.name}`);
+    notify(editing ? 'Movimiento actualizado' : `Guardado: ${money(add)} en ${current.name}`);
+    await data.reload();
+    go('resumen');
+  };
+
+  const removeTx = async () => {
+    if (!window.confirm('¿Borrar este movimiento?')) return;
+    setBusy(true);
+    const { error } = await supabase.from('transactions').delete().eq('id', editing.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    notify('Movimiento borrado');
     await data.reload();
     go('resumen');
   };
@@ -65,7 +80,7 @@ export default function NuevoMovimiento({ data, user, go, notify }) {
     <form className="app plain" onSubmit={save}>
       <header className="between">
         <button type="button" className="iconbtn" style={{ width: 44, height: 44, background: '#fff', color: 'var(--ink)' }} aria-label="Cerrar" onClick={() => go('resumen')}><Icon.close /></button>
-        <h1 style={{ fontSize: 20 }}>Nuevo movimiento</h1>
+        <h1 style={{ fontSize: 20 }}>{editing ? 'Editar movimiento' : 'Nuevo movimiento'}</h1>
         <span style={{ width: 44 }} />
       </header>
 
@@ -129,7 +144,8 @@ export default function NuevoMovimiento({ data, user, go, notify }) {
       </div>
 
       {err && <div className="note err">{err}</div>}
-      <button className="btn" style={{ minHeight: 56, fontSize: 16, marginTop: 8 }} disabled={busy}>{busy ? 'Guardando…' : 'Guardar movimiento'}</button>
+      <button className="btn" style={{ minHeight: 56, fontSize: 16, marginTop: 8 }} disabled={busy}>{busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar movimiento'}</button>
+      {editing && <button type="button" className="btn danger" disabled={busy} onClick={removeTx}>Borrar movimiento</button>}
     </form>
   );
 }

@@ -62,21 +62,23 @@ function Shell({ user, householdId }) {
   const [tab, setTab] = useState('resumen');
   const [month, setMonth] = useState(monthOf());
   const [toast, setToast] = useState('');
+  const [editing, setEditing] = useState(null);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
-  const go = (t) => { setTab(t); window.scrollTo(0, 0); };
+  const go = (t) => { if (t !== 'nuevo') setEditing(null); setTab(t); window.scrollTo(0, 0); };
+  const edit = (tx) => { setEditing(tx); setTab('nuevo'); window.scrollTo(0, 0); };
 
   if (data.loading) return <div className="center small">Cargando datos…</div>;
   if (data.error) {
     return <div className="center"><div className="sheet card"><h2>No se pudieron cargar los datos</h2><p className="small">{data.error}</p><button className="btn" onClick={data.reload}>Reintentar</button></div></div>;
   }
 
-  const props = { data, user, month, setMonth, go, notify };
+  const props = { data, user, month, setMonth, go, notify, edit };
   return (
     <>
       {tab === 'resumen' && <Resumen {...props} />}
       {tab === 'presupuesto' && <Presupuesto {...props} />}
-      {tab === 'nuevo' && <NuevoMovimiento {...props} />}
+      {tab === 'nuevo' && <NuevoMovimiento key={editing?.id || 'new'} {...props} editing={editing} />}
       {tab === 'comparar' && <Comparativa {...props} />}
       {tab === 'hogar' && <Hogar {...props} />}
       {tab !== 'nuevo' && (
@@ -84,7 +86,7 @@ function Shell({ user, householdId }) {
           <div className="nav-inner">
             {TABS.map((t) => (
               <button key={t.key} className={t.fab ? 'fab' : ''} aria-label={t.fab ? 'Añadir movimiento' : undefined}
-                aria-current={tab === t.key ? 'page' : undefined} onClick={() => go(t.key)}>
+                aria-current={tab === t.key ? 'page' : undefined} onClick={() => { setEditing(null); go(t.key); }}>
                 <t.icon />{!t.fab && t.label}
               </button>
             ))}

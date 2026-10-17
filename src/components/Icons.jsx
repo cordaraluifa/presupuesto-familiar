@@ -9,6 +9,7 @@ export const Icon = {
   left: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M15 6l-6 6 6 6" /></svg>,
   right: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M9 6l6 6-6 6" /></svg>,
   close: (p) => <svg width="20" height="20" viewBox="0 0 24 24" {...base} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>,
+  edit: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>,
   trash: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>,
   alert: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M12 8v5M12 16.5v.5" /><circle cx="12" cy="12" r="9" /></svg>,
   bolt: (p) => <svg width="18" height="18" viewBox="0 0 24 24" {...base} {...p}><path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z" /></svg>,
