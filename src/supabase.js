@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // de los datos la dan las reglas (RLS) de supabase/schema.sql.
 // Si en Vercel hay variables válidas, se usan esas; si no, estos.
 const DEFAULT_URL = 'https://ecldbrggyisfjsmbozgf.supabase.co';
-const DEFAULT_ANON_KEY = '';
+const DEFAULT_ANON_KEY = 'sb_publishable_enmJ2sZr_kiNoPky1xsl3w_5PvcaRRy';
 
 const clean = (v) => (v || '').trim().replace(/^["']|["']$/g, '').trim();
 const normUrl = (v) => clean(v).replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
