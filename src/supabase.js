@@ -1,17 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Limpia espacios o comillas que se cuelan al copiar y pegar.
+// Valores públicos del proyecto de Supabase. No son secretos: la seguridad
+// de los datos la dan las reglas (RLS) de supabase/schema.sql.
+// Si en Vercel hay variables válidas, se usan esas; si no, estos.
+const DEFAULT_URL = 'https://ecldbrggyisfjsmbozgf.supabase.co';
+const DEFAULT_ANON_KEY = '';
+
 const clean = (v) => (v || '').trim().replace(/^["']|["']$/g, '').trim();
-const url = clean(import.meta.env.VITE_SUPABASE_URL).replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
-const key = clean(import.meta.env.VITE_SUPABASE_ANON_KEY);
+const normUrl = (v) => clean(v).replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
+const validUrl = (v) => /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(v);
+const validKey = (v) => /^(eyJ[\w-]+\.[\w-]+\.[\w-]+|sb_publishable_[\w-]+)$/.test(v);
+
+const envUrl = normUrl(import.meta.env.VITE_SUPABASE_URL);
+const envKey = clean(import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+const url = validUrl(envUrl) ? envUrl : DEFAULT_URL;
+const key = validKey(envKey) ? envKey : clean(DEFAULT_ANON_KEY);
 
 let client = null;
 let configError = null;
 
-if (!url || !key) {
-  configError = `Falta ${!url ? 'VITE_SUPABASE_URL' : ''}${!url && !key ? ' y ' : ''}${!key ? 'VITE_SUPABASE_ANON_KEY' : ''}.`;
-} else if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url)) {
-  configError = `VITE_SUPABASE_URL no tiene el formato esperado (https://xxxx.supabase.co). Valor actual: "${url.slice(0, 60)}"`;
+if (!validKey(key)) {
+  configError = 'Falta la clave pública (anon / publishable) de Supabase.';
 } else {
   try {
     client = createClient(url, key);
