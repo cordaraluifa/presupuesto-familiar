@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { supabase } from '../supabase.js';
 import { initial, personColor } from '../lib/format.js';
 
-export default function Hogar({ data, user, notify }) {
+export default function Hogar({ data, user, notify, households = [], switchTo }) {
+  const [joinCode, setJoinCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [joinErr, setJoinErr] = useState('');
   const me = data.members.find((m) => m.user_id === user.id);
   const [name, setName] = useState(me?.display_name || '');
   const [hhName, setHhName] = useState(data.household.name);
@@ -18,6 +21,20 @@ export default function Hogar({ data, user, notify }) {
       if (navigator.share) { await navigator.share({ title: 'Presupuesto familiar', text: inviteText }); return; }
     } catch { return; }
     try { await navigator.clipboard.writeText(inviteText); notify('Invitación copiada'); } catch { notify(`Código: ${code}`); }
+  };
+
+  const join = async (e) => {
+    e.preventDefault();
+    setJoinErr('');
+    const c = joinCode.trim().toUpperCase();
+    if (!c) return;
+    if (c === code) { setJoinErr('Ese es el código de este mismo hogar.'); return; }
+    setJoining(true);
+    const { data: newId, error } = await supabase.rpc('join_household', { p_code: c, p_display_name: me?.display_name || name.trim() || 'Yo' });
+    setJoining(false);
+    if (error) { setJoinErr(error.message.includes('no válido') ? 'Código no válido. Revísalo con la otra persona.' : error.message); return; }
+    notify('Te has unido al hogar');
+    switchTo(newId);
   };
 
   const saveName = async () => {
@@ -56,6 +73,26 @@ export default function Hogar({ data, user, notify }) {
         <p className="small" style={{ margin: 0 }}>Que entre en la app, cree su cuenta, elija <b>"Tengo un código"</b> y escriba este código:</p>
         <div className="num" style={{ fontFamily: 'var(--display)', fontSize: 32, fontWeight: 700, letterSpacing: 4, textAlign: 'center', background: '#F8F9F6', borderRadius: 14, padding: '12px 0' }}>{code}</div>
         <button className="btn" onClick={share}>Enviar invitación</button>
+      </section>
+
+      <section className="card">
+        <h2>Unirme a otro hogar</h2>
+        <p className="small" style={{ margin: 0 }}>Si tu pareja ya creó el hogar, escribe aquí el código que ve en su pestaña Hogar. Pasarás a ver y cargar los mismos datos.</p>
+        <form className="row" onSubmit={join}>
+          <label className="vh" htmlFor="joincode">Código de invitación</label>
+          <input id="joincode" className="field" autoComplete="off" autoCapitalize="characters" placeholder="Ej.: 7F3A9C21" value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())} style={{ letterSpacing: 2, fontWeight: 700 }} />
+          <button className="btn" style={{ minHeight: 48 }} disabled={joining || !joinCode.trim()}>{joining ? 'Uniendo…' : 'Unirme'}</button>
+        </form>
+        {joinErr && <div className="note err">{joinErr}</div>}
+        {households.length > 1 && (
+          <div className="stack">
+            <label className="lbl" htmlFor="hhsel">Hogar que estás viendo</label>
+            <select id="hhsel" className="field" value={data.household.id} onChange={(e) => switchTo(e.target.value)}>
+              {households.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+        )}
       </section>
 
       <section className="card">
