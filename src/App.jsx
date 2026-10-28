@@ -16,7 +16,7 @@ export default function App() {
 
   useEffect(() => {
     if (!configured) return undefined;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    withTimeout(supabase.auth.getSession()).then(({ data }) => setSession(data.session)).catch(() => setSession(null));
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => data.subscription.unsubscribe();
   }, []);
@@ -35,6 +35,29 @@ export default function App() {
   return <Membership user={session.user} />;
 }
 
+// Evita esperas infinitas si la base de datos no responde (p. ej. proyecto pausado).
+export const withTimeout = (promise, ms = 15000) => Promise.race([
+  promise,
+  new Promise((_, rej) => setTimeout(() => rej(new Error('La base de datos no responde (tiempo de espera agotado).')), ms)),
+]);
+
+export function ConnectionError({ detail, onRetry }) {
+  return (
+    <div className="center"><div className="sheet card">
+      <h1>Sin conexión con los datos</h1>
+      <p style={{ margin: 0 }}>No se pudo conectar con la base de datos. Lo más habitual es que el proyecto de Supabase se haya <b>pausado por inactividad</b> (pasa en el plan gratuito tras 7 días sin uso).</p>
+      <ol className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+        <li>Entra en supabase.com y abre tu proyecto.</li>
+        <li>Si pone <b>Paused</b>, pulsa <b>Restore project</b> y espera unos minutos.</li>
+        <li>Vuelve aquí y pulsa Reintentar.</li>
+      </ol>
+      <div className="note err" style={{ overflowWrap: 'anywhere' }}>{detail}</div>
+      <button className="btn" onClick={onRetry}>Reintentar</button>
+      <button className="link" onClick={() => supabase.auth.signOut()}>Cerrar sesión</button>
+    </div></div>
+  );
+}
+
 const PREF_KEY = 'pf-household';
 const readPref = () => { try { return localStorage.getItem(PREF_KEY); } catch { return null; } };
 const writePref = (v) => { try { localStorage.setItem(PREF_KEY, v); } catch { /* sin almacenamiento */ } };
@@ -43,10 +66,19 @@ function Membership({ user }) {
   const [list, setList] = useState(undefined);
   const [hid, setHid] = useState(undefined);
 
+  const [failed, setFailed] = useState(null);
+
   const check = async (prefer) => {
-    const { data } = await supabase.from('members')
-      .select('household_id, joined_at, households(name)')
-      .eq('user_id', user.id).order('joined_at', { ascending: false });
+    setFailed(null);
+    let res;
+    try {
+      res = await withTimeout(supabase.from('members')
+        .select('household_id, joined_at, households(name)')
+        .eq('user_id', user.id).order('joined_at', { ascending: false }));
+    } catch (e) { res = { error: e }; }
+    const { data, error } = res;
+    // Si no hay conexión, no mostrar "Crear hogar" (crearía uno nuevo por error).
+    if (error) { setFailed(error.message || String(error)); return; }
     const rows = (data || []).map((r) => ({ id: r.household_id, name: r.households?.name || 'Hogar' }));
     setList(rows);
     const want = prefer || readPref();
@@ -59,6 +91,7 @@ function Membership({ user }) {
 
   const switchTo = (id) => { writePref(id); check(id); };
 
+  if (failed) return <ConnectionError detail={failed} onRetry={() => check()} />;
   if (hid === undefined) return <div className="center small">Cargando…</div>;
   if (!hid) return <Onboarding user={user} onDone={switchTo} />;
   return <Shell key={hid} user={user} householdId={hid} households={list} switchTo={switchTo} />;
@@ -85,7 +118,7 @@ function Shell({ user, householdId, households, switchTo }) {
 
   if (data.loading) return <div className="center small">Cargando datos…</div>;
   if (data.error) {
-    return <div className="center"><div className="sheet card"><h2>No se pudieron cargar los datos</h2><p className="small">{data.error}</p><button className="btn" onClick={data.reload}>Reintentar</button></div></div>;
+    return <ConnectionError detail={data.error} onRetry={data.reload} />;
   }
 
   const props = { data, user, month, setMonth, go, notify, edit, households, switchTo };

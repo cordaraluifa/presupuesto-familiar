@@ -12,7 +12,9 @@ export function useHouseholdData(householdId) {
     if (!householdId) return;
     const from = addMonths(monthOf(), -11);
     const to = addMonths(monthOf(), 2);
-    const [hh, mem, cats, buds, txs, tots] = await Promise.all([
+    let all;
+    try {
+      all = await Promise.race([Promise.all([
       supabase.from('households').select('*').eq('id', householdId).single(),
       supabase.from('members').select('*').eq('household_id', householdId).order('joined_at'),
       supabase.from('categories').select('*').eq('household_id', householdId).order('sort').order('created_at'),
@@ -20,7 +22,11 @@ export function useHouseholdData(householdId) {
       supabase.from('transactions').select('*').eq('household_id', householdId).gte('date', from).lt('date', to)
         .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(5000),
       supabase.from('category_totals').select('*').eq('household_id', householdId),
-    ]);
+      ]), new Promise((_, rej) => setTimeout(() => rej(new Error('La base de datos no responde (tiempo de espera agotado).')), 15000))]);
+    } catch (e) {
+      setState((s) => ({ ...s, loading: false, error: e.message })); return;
+    }
+    const [hh, mem, cats, buds, txs, tots] = all;
     const error = [hh, mem, cats, buds, txs, tots].find((r) => r.error)?.error;
     if (error) { setState((s) => ({ ...s, loading: false, error: error.message })); return; }
     setState({
