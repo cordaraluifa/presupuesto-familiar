@@ -11,7 +11,7 @@ export function useHouseholdData(householdId) {
   const load = useCallback(async () => {
     if (!householdId) return;
     const from = addMonths(monthOf(), -11);
-    const to = addMonths(monthOf(), 2);
+    const to = addMonths(monthOf(), 13); // incluye presupuestos de los próximos 12 meses
     let all;
     try {
       all = await Promise.race([Promise.all([

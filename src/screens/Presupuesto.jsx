@@ -11,18 +11,26 @@ export default function Presupuesto({ data, month, setMonth, notify }) {
   const hid = data.household.id;
   const st = useMemo(() => monthStats(data, month), [data, month]);
   const prev = addMonths(month, -1);
-  const prevBudgets = data.budgets.filter((b) => b.month === prev);
+  // Mes de origen para copiar: el anterior, o el último mes con presupuesto.
+  const source = data.budgets.some((b) => b.month === prev) ? prev
+    : data.budgets.filter((b) => b.month < month).map((b) => b.month).sort().pop() || prev;
+  const sourceBudgets = data.budgets.filter((b) => b.month === source);
 
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(null);
   const [newName, setNewName] = useState('');
+  const [copiedFrom, setCopiedFrom] = useState(null);
 
+  // Solo se rellena el formulario al cambiar de mes o cuando cambian los importes
+  // guardados (así no se pierde lo que estás escribiendo si la app se refresca).
+  const savedSig = data.categories.map((c) => `${c.id}:${st.budgetByCat[c.id] || 0}`).join('|');
   useEffect(() => {
     const d = {};
     for (const c of data.categories) d[c.id] = fmtInput(st.budgetByCat[c.id]);
     setDraft(d);
-  }, [data, month]); // eslint-disable-line react-hooks/exhaustive-deps
+    setCopiedFrom(null);
+  }, [month, savedSig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = data.categories.filter((c) => !c.archived);
   const val = (id) => { const n = parseAmount(draft[id] || '0'); return Number.isFinite(n) ? n : 0; };
@@ -41,15 +49,20 @@ export default function Presupuesto({ data, month, setMonth, notify }) {
       .map((c) => ({ household_id: hid, category_id: c.id, month, amount: val(c.id) }));
     const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'category_id,month' });
     setSaving(false);
-    if (error) notify(error.message); else { notify('Presupuesto guardado'); data.reload(); }
+    if (error) notify(error.message); else { setCopiedFrom(null); notify('Presupuesto guardado'); data.reload(); }
   };
 
-  const copyPrev = async () => {
-    if (!prevBudgets.length) { notify(`No hay presupuesto en ${monthLabel(prev)}`); return; }
-    if (st.hasBudget && !window.confirm(`Esto sustituye los importes de ${monthLabel(month)} por los de ${monthLabel(prev)}. ¿Continuar?`)) return;
-    const rows = prevBudgets.map((b) => ({ household_id: hid, category_id: b.category_id, month, amount: b.amount }));
-    const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'category_id,month' });
-    if (error) notify(error.message); else { notify(`Copiado de ${monthLabel(prev)}`); data.reload(); }
+  // Rellena el formulario con los importes del mes de origen; no guarda hasta pulsar Guardar.
+  const copyPrev = () => {
+    if (!sourceBudgets.length) { notify('No hay ningún mes anterior con presupuesto'); return; }
+    const hasValues = active.some((c) => val(c.id) > 0);
+    if (hasValues && !window.confirm(`Se sustituirán los importes que ves por los de ${monthLabel(source)}. Luego podrás revisarlos antes de guardar. ¿Continuar?`)) return;
+    const from = Object.fromEntries(sourceBudgets.map((b) => [b.category_id, Number(b.amount)]));
+    const d = { ...draft };
+    for (const c of active) d[c.id] = fmtInput(from[c.id]);
+    setDraft(d);
+    setCopiedFrom(source);
+    notify(`Importes de ${monthLabel(source)} cargados`);
   };
 
   const rename = async (c) => {
@@ -93,9 +106,13 @@ export default function Presupuesto({ data, month, setMonth, notify }) {
       </header>
 
       <div className="row">
-        <button className="btn ghost" style={{ flex: 1 }} onClick={copyPrev}>Copiar de {monthLabel(prev).split(' ')[0].toLowerCase()}</button>
+        <button className="btn ghost" style={{ flex: 1 }} onClick={copyPrev}>Copiar de {monthLabel(source).split(' ')[0].toLowerCase()}</button>
         <button className="btn" style={{ flex: 1, minHeight: 44, fontSize: 13 }} disabled={!dirty || saving} onClick={save}>{saving ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Guardado'}</button>
       </div>
+
+      {copiedFrom && dirty && (
+        <div className="note">Importes copiados de <b>{monthLabel(copiedFrom)}</b>. Revisa o cambia lo que quieras y pulsa <b>Guardar cambios</b>.</div>
+      )}
 
       <section className="card">
         <div className="grid3">
